@@ -1,0 +1,17 @@
+name: changeset
+description: A lightweight CLI tool to manage changesets for Dart/Flutter projects.
+version: 1.0.0
+repository: https://github.com/emirchus/changeset
+
+environment:
+  sdk: ^3.9.2
+
+dependencies:
+  args: ^2.7.0
+
+executables:
+  changeset: changeset
+
+dev_dependencies:
+  lints: ^6.0.0
+  test: ^1.25.6
