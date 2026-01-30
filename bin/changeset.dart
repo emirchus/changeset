@@ -88,7 +88,9 @@ Future<ResolvedConfig> resolveConfig({Directory? cwd}) async {
   Directory dir = start;
 
   while (true) {
-    final changesetYaml = File('${dir.path}${Platform.pathSeparator}changeset.yaml');
+    final changesetYaml = File(
+      '${dir.path}${Platform.pathSeparator}changeset.yaml',
+    );
     if (await changesetYaml.exists()) {
       final config = await _loadChangesetYaml(changesetYaml);
       return ResolvedConfig(root: dir, config: config);
@@ -97,9 +99,13 @@ Future<ResolvedConfig> resolveConfig({Directory? cwd}) async {
     final pubspec = File('${dir.path}${Platform.pathSeparator}pubspec.yaml');
     if (await pubspec.exists()) {
       final content = await pubspec.readAsString();
-      final hasWorkspace = RegExp(r'^\s*workspace:\s*$', multiLine: true).hasMatch(content) ||
-          (content.contains('workspace:') && RegExp(r'^\s*-\s*[\w./]+', multiLine: true).hasMatch(content));
-      final hasMelos = RegExp(r'^\s*melos:\s*$', multiLine: true).hasMatch(content) || content.contains('melos:');
+      final hasWorkspace =
+          RegExp(r'^\s*workspace:\s*$', multiLine: true).hasMatch(content) ||
+          (content.contains('workspace:') &&
+              RegExp(r'^\s*-\s*[\w./]+', multiLine: true).hasMatch(content));
+      final hasMelos =
+          RegExp(r'^\s*melos:\s*$', multiLine: true).hasMatch(content) ||
+          content.contains('melos:');
       if (hasWorkspace || hasMelos) {
         final config = _loadChangesetFromPubspec(content);
         return ResolvedConfig(root: dir, config: config);
@@ -179,12 +185,13 @@ class Changeset {
 }
 
 Future<void> main(List<String> args) async {
-  final runner = CommandRunner<void>(
-    'changeset',
-    'A lightweight CLI to manage changesets for Dart/Flutter projects.',
-  )
-    ..addCommand(AddCommand())
-    ..addCommand(ReleaseCommand());
+  final runner =
+      CommandRunner<void>(
+          'changeset',
+          'A lightweight CLI to manage changesets for Dart/Flutter projects.',
+        )
+        ..addCommand(AddCommand())
+        ..addCommand(ReleaseCommand());
 
   try {
     await runner.run(args);
@@ -217,10 +224,7 @@ class AddCommand extends Command<void> {
         mandatory: true,
         help: 'Short description of the change',
       )
-      ..addOption(
-        'scope',
-        help: 'Optional scope/module for changelog grouping',
-      )
+      ..addOption('scope', help: 'Optional scope/module for changelog grouping')
       ..addOption(
         'workspace',
         abbr: 'W',
@@ -273,7 +277,8 @@ class AddCommand extends Command<void> {
         return;
       }
       final changesetsPath = resolved.config.changesetsPath;
-      final fullPath = '${resolved.rootPath}${Platform.pathSeparator}$changesetsPath';
+      final fullPath =
+          '${resolved.rootPath}${Platform.pathSeparator}$changesetsPath';
       dir = Directory(fullPath);
       packageLine = 'package: $workspaceName';
     } else {
@@ -324,10 +329,7 @@ class ReleaseCommand extends Command<void> {
 
   ReleaseCommand() {
     argParser
-      ..addFlag(
-        'dry-run',
-        help: 'Show release plan without modifying files',
-      )
+      ..addFlag('dry-run', help: 'Show release plan without modifying files')
       ..addOption(
         'workspace',
         abbr: 'W',
@@ -363,7 +365,9 @@ class ReleaseCommand extends Command<void> {
       }
       final pkgPath = resolved.config.packages[workspaceName]!;
       final rootPath = resolved.rootPath;
-      changesetDir = Directory('$rootPath$sep${resolved.config.changesetsPath}');
+      changesetDir = Directory(
+        '$rootPath$sep${resolved.config.changesetsPath}',
+      );
       pubspecFile = File('$rootPath$sep$pkgPath${sep}pubspec.yaml');
       changelogFile = File('$rootPath$sep${resolved.config.changelogPath}');
       archiveSubdir = 'archived$sep$workspaceName$sep';
@@ -387,13 +391,17 @@ class ReleaseCommand extends Command<void> {
 
     var allChangesets = await _readChangesets(changesetDir);
     if (workspaceName != null) {
-      allChangesets = allChangesets.where((c) => c.package == workspaceName).toList();
+      allChangesets = allChangesets
+          .where((c) => c.package == workspaceName)
+          .toList();
     } else {
       allChangesets = allChangesets.where((c) => c.package == null).toList();
     }
 
     if (allChangesets.isEmpty) {
-      print('No changesets found for ${workspaceName ?? "this project"}. Nothing to release.');
+      print(
+        'No changesets found for ${workspaceName ?? "this project"}. Nothing to release.',
+      );
       return;
     }
 
@@ -409,25 +417,14 @@ class ReleaseCommand extends Command<void> {
         ? next.flutterVersion
         : next.versionName;
 
-    final now = DateTime.now();
-    final dateStr =
-        '${now.year.toString().padLeft(4, '0')}-'
-        '${now.month.toString().padLeft(2, '0')}-'
-        '${now.day.toString().padLeft(2, '0')}';
-
     final grouped = _groupByScope(allChangesets);
     final releaseNotes = workspaceName != null
         ? _buildReleaseNotes(
             versionName: next.versionName,
-            date: dateStr,
             grouped: grouped,
             packageName: workspaceName,
           )
-        : _buildReleaseNotes(
-            versionName: next.versionName,
-            date: dateStr,
-            grouped: grouped,
-          );
+        : _buildReleaseNotes(versionName: next.versionName, grouped: grouped);
 
     print('--- Release Plan ---');
     if (workspaceName != null) print('Workspace: $workspaceName');
@@ -454,7 +451,9 @@ class ReleaseCommand extends Command<void> {
     await changelogFile.writeAsString(updatedChangelog);
     print('Updated ${changelogFile.path}');
 
-    final archiveDir = Directory('${changesetDir.path}$sep$archiveSubdir${next.versionName}');
+    final archiveDir = Directory(
+      '${changesetDir.path}$sep$archiveSubdir${next.versionName}',
+    );
     await archiveDir.create(recursive: true);
 
     for (final cs in allChangesets) {
@@ -624,15 +623,14 @@ Map<String, List<Changeset>> _groupByScope(List<Changeset> list) {
 
 String _buildReleaseNotes({
   required String versionName,
-  required String date,
   required Map<String, List<Changeset>> grouped,
   String? packageName,
 }) {
   final b = StringBuffer();
   if (packageName != null) {
-    b.writeln('## $packageName $versionName - $date');
+    b.writeln('## $packageName $versionName');
   } else {
-    b.writeln('## $versionName - $date');
+    b.writeln('## $versionName');
   }
   b.writeln();
 
