@@ -11,6 +11,7 @@ Works with plain Dart packages (version `X.Y.Z`) and Flutter projects (version `
 - **Dry-run:** The `release --dry-run` command shows the release plan without modifying any files.
 - **Config:** Optional `changeset.yaml` or `changeset:` key in root `pubspec.yaml` to set paths and workspace packages.
 - **Monorepo / workspace:** Use `-W <package>` (or `--workspace`) on `add` and `release` to manage changesets per package: one `.changesets/` and one `CHANGELOG.md` at the repo root, while version bumps apply to the chosen package’s `pubspec.yaml`.
+- **Shell completion:** Bash, zsh, and fish completion scripts (commands, options, workspace names from config).
 
 ## Requirements
 
@@ -31,6 +32,38 @@ Or install it globally:
 ```bash
 dart pub global activate changeset
 ```
+
+### Shell completion
+
+Install tab-completion for commands, options, and workspace names (from `changeset.yaml` / config). Run from a directory where `changeset` is available (e.g. after `dart pub global activate changeset`).
+
+**Windows (PowerShell / Starship):** Use PowerShell completion so tab-completion works in Windows Terminal, Starship, etc. (requires `changeset` in PATH, e.g. `dart pub global activate changeset`). See the PowerShell option below. You can also use bash/zsh/fish in [Git Bash](https://git-scm.com/download/win) or WSL.
+
+**Bash** (add to `~/.bashrc` or `~/.profile`):
+```bash
+eval "$(changeset completion bash)"
+```
+
+**Zsh** (add to `~/.zshrc`):
+```bash
+eval "$(changeset completion zsh)"
+```
+
+**Fish** (add to `~/.config/fish/config.fish`):
+```fish
+changeset completion fish | source
+```
+
+**PowerShell** (Windows / Starship — add to your [profile](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_profiles)):
+```powershell
+. (changeset completion powershell)
+```
+Or run once and add the output to your profile:
+```powershell
+changeset completion powershell | Out-String | Invoke-Expression
+```
+
+You can also generate a script explicitly: `changeset completion --shell bash` (or `zsh` / `fish` / `powershell`). Completion suggests: `add`, `release`, `completion`; options like `--type`, `--workspace`; for `-W`/`--workspace` it lists workspace names from your config when run inside a monorepo.
 
 ## Configuration
 

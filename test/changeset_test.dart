@@ -208,6 +208,33 @@ void main() {
       expect(result.exitCode, 64);
       expect(result.stderr, contains('add requires --type and --summary'));
     });
+
+    test('completion --shell bash prints script with add release completion',
+        () async {
+      final result = await Process.run(
+        'dart',
+        ['run', 'bin/changeset.dart', 'completion', '--shell', 'bash'],
+        runInShell: false,
+        workingDirectory: projectRoot,
+      );
+      expect(result.exitCode, 0);
+      expect(result.stdout, contains('add release completion'));
+      expect(result.stdout, contains('_changeset_complete'));
+    });
+
+    test('completion --shell powershell prints Register-ArgumentCompleter script',
+        () async {
+      final result = await Process.run(
+        'dart',
+        ['run', 'bin/changeset.dart', 'completion', '--shell', 'powershell'],
+        runInShell: false,
+        workingDirectory: projectRoot,
+      );
+      expect(result.exitCode, 0);
+      expect(result.stdout, contains('Register-ArgumentCompleter'));
+      expect(result.stdout, contains('powershell'));
+      expect(result.stdout, contains('add'));
+    });
   });
 
   group('Config and workspace', () {

@@ -185,13 +185,27 @@ class Changeset {
 }
 
 Future<void> main(List<String> args) async {
+  if (args.contains('--__complete-workspaces')) {
+    try {
+      final resolved = await resolveConfig();
+      final names = resolved.config.packages.keys.toList()..sort();
+      for (final n in names) {
+        print(n);
+      }
+    } catch (_) {
+      // No config or error: output nothing
+    }
+    return;
+  }
+
   final runner =
       CommandRunner<void>(
           'changeset',
           'A lightweight CLI to manage changesets for Dart/Flutter projects.',
         )
         ..addCommand(AddCommand())
-        ..addCommand(ReleaseCommand());
+        ..addCommand(ReleaseCommand())
+        ..addCommand(CompletionCommand());
 
   try {
     await runner.run(args);
@@ -474,11 +488,242 @@ class ReleaseCommand extends Command<void> {
   }
 }
 
+class CompletionCommand extends Command<void> {
+  @override
+  String get name => 'completion';
+
+  @override
+  String get description =>
+      'Print shell completion script (bash, zsh, fish, powershell). Install: eval "\$(changeset completion <shell>)".';
+
+  CompletionCommand() {
+    argParser.addOption(
+      'shell',
+      abbr: 's',
+      allowed: ['bash', 'zsh', 'fish', 'powershell'],
+      help: 'Shell to generate completion for',
+    );
+  }
+
+  @override
+  Future<void> run() async {
+    final shell = argResults!['shell'] as String? ?? _detectShell();
+    switch (shell) {
+      case 'bash':
+        print(_bashCompletionScript());
+        break;
+      case 'zsh':
+        print(_zshCompletionScript());
+        break;
+      case 'fish':
+        print(_fishCompletionScript());
+        break;
+      case 'powershell':
+        print(_powershellCompletionScript());
+        break;
+      default:
+        stderr.writeln(
+          'Unknown shell "$shell". Use --shell bash|zsh|fish|powershell.',
+        );
+        exitCode = 2;
+    }
+  }
+
+  String _detectShell() {
+    if (Platform.isWindows) {
+      final ps = Platform.environment['PSModulePath'];
+      if (ps != null && ps.isNotEmpty) return 'powershell';
+      final shell = Platform.environment['SHELL'] ?? '';
+      if (shell.contains('bash')) return 'bash';
+      if (shell.contains('zsh')) return 'zsh';
+      if (shell.contains('fish')) return 'fish';
+      return 'powershell';
+    }
+    final env = Platform.environment['SHELL'] ?? '';
+    if (env.contains('bash')) return 'bash';
+    if (env.contains('zsh')) return 'zsh';
+    if (env.contains('fish')) return 'fish';
+    return 'bash';
+  }
+
+  String _bashCompletionScript() {
+    const cmd = 'changeset';
+    return '''
+# Bash completion for changeset
+_changeset_complete() {
+  local cur prev words cword
+  _init_completion -s || return
+  prev="\${words[cword-1]}"
+
+  if [[ \$cword -eq 1 ]]; then
+    COMPREPLY=(\$(compgen -W "add release completion" -- "\$cur"))
+    return
+  fi
+
+  local subcmd="\${words[1]}"
+  if [[ "\$prev" == "-W" || "\$prev" == "--workspace" ]]; then
+    COMPREPLY=(\$(compgen -W "\$($cmd --__complete-workspaces 2>/dev/null)" -- "\$cur"))
+    return
+  fi
+
+  if [[ "\$subcmd" == "add" ]]; then
+    if [[ "\$prev" == "--type" || "\$prev" == "-t" ]]; then
+      COMPREPLY=(\$(compgen -W "major minor patch" -- "\$cur"))
+      return
+    fi
+    COMPREPLY=(\$(compgen -W "--type -t --summary -s --scope --workspace -W" -- "\$cur"))
+    return
+  fi
+
+  if [[ "\$subcmd" == "release" ]]; then
+    COMPREPLY=(\$(compgen -W "--dry-run --workspace -W" -- "\$cur"))
+    return
+  fi
+
+  if [[ "\$subcmd" == "completion" ]]; then
+    COMPREPLY=(\$(compgen -W "--shell -s bash zsh fish powershell" -- "\$cur"))
+    return
+  fi
+}
+complete -F _changeset_complete $cmd
+''';
+  }
+
+  String _zshCompletionScript() {
+    const cmd = 'changeset';
+    return '''
+# Zsh completion for changeset
+_changeset() {
+  local cur context state state_descr line
+  _arguments -C \\
+    "1:command:((add\\:Create\\ a\\ changeset release\\:Apply\\ changesets completion\\:Shell\\ completion))" \\
+    "*::arg:->args"
+
+  case "\$line[1]" in
+    add)
+      _arguments \\
+        "--type[Bump type]:type:(major minor patch)" \\
+        "-t[Bump type]:type:(major minor patch)" \\
+        "--summary[Description]:summary:" \\
+        "-s[Description]:summary:" \\
+        "--scope[Scope]:scope:" \\
+        "--workspace[Workspace name]:workspace:(\$($cmd --__complete-workspaces 2>/dev/null))" \\
+        "-W[Workspace name]:workspace:(\$($cmd --__complete-workspaces 2>/dev/null))"
+      ;;
+    release)
+      _arguments \\
+        "--dry-run[Preview only]" \\
+        "--workspace[Workspace name]:workspace:(\$($cmd --__complete-workspaces 2>/dev/null))" \\
+        "-W[Workspace name]:workspace:(\$($cmd --__complete-workspaces 2>/dev/null))"
+      ;;
+    completion)
+      _arguments "--shell[Shell]:shell:(bash zsh fish powershell)" "-s[Shell]:shell:(bash zsh fish powershell)"
+      ;;
+  esac
+}
+compdef _changeset $cmd
+''';
+  }
+
+  String _fishCompletionScript() {
+    const cmd = 'changeset';
+    return '''
+# Fish completion for changeset
+function __changeset_workspaces
+  $cmd --__complete-workspaces 2>/dev/null
+end
+
+function __changeset_complete
+  set -l tokens (commandline -opc)
+  set -l curr (commandline -t)
+  set -l n (count \$tokens)
+
+  if test \$n -eq 1
+    echo add\\nrelease\\ncompletion
+    return
+  end
+
+  set -l subcmd \$tokens[2]
+  if test \$n -ge 3
+    and string match -q -- "\$tokens[-1]" "-W" "--workspace"
+    __changeset_workspaces
+    return
+  end
+
+  if string match -q -- "\$subcmd" add
+    if string match -q -- "\$tokens[-1]" "--type" "-t"
+      echo major\\nminor\\npatch
+      return
+    end
+    echo --type\\n-t\\n--summary\\n-s\\n--scope\\n--workspace\\n-W
+    return
+  end
+
+  if string match -q -- "\$subcmd" release
+    echo --dry-run\\n--workspace\\n-W
+    return
+  end
+
+  if string match -q -- "\$subcmd" completion
+    echo --shell\\n-s\\nbash\\nzsh\\nfish\\npowershell
+    return
+  end
+end
+
+complete -c $cmd -f -a "(__changeset_complete)"
+''';
+  }
+
+  String _powershellCompletionScript() {
+    const cmd = 'changeset';
+    return '''
+# PowerShell completion for changeset (Windows / Starship)
+# Install: Add to your PowerShell profile: changeset completion powershell | Out-String | Invoke-Expression
+# Or: . (changeset completion powershell)
+
+Register-ArgumentCompleter -Native -CommandName $cmd -ScriptBlock {
+  param(\$wordToComplete, \$commandAst, \$cursorPosition)
+  \$line = \$commandAst.ToString()
+  \$tokens = (\$line -split '\\s+').Where{ \$_.Length -gt 0 }
+  \$n = \$tokens.Count
+  \$prev = if (\$n -ge 2) { \$tokens[-2] } else { \$null }
+  \$subcmd = if (\$n -ge 2) { \$tokens[1] } else { \$null }
+
+  \$out = @()
+  if (\$n -le 1) {
+    \$out = @('add', 'release', 'completion')
+  } elseif (\$prev -eq '-W' -or \$prev -eq '--workspace') {
+    try {
+      \$out = & $cmd --__complete-workspaces 2>\$null
+      if (\$out -eq \$null) { \$out = @() }
+      if (\$out -is [string]) { \$out = @(\$out) }
+    } catch { \$out = @() }
+  } elseif (\$subcmd -eq 'add') {
+    if (\$prev -eq '--type' -or \$prev -eq '-t') {
+      \$out = @('major', 'minor', 'patch')
+    } else {
+      \$out = @('--type', '-t', '--summary', '-s', '--scope', '--workspace', '-W')
+    }
+  } elseif (\$subcmd -eq 'release') {
+    \$out = @('--dry-run', '--workspace', '-W')
+  } elseif (\$subcmd -eq 'completion') {
+    \$out = @('--shell', '-s', 'bash', 'zsh', 'fish', 'powershell')
+  }
+
+  \$out | Where-Object { \$_ -like "\$wordToComplete*" } | ForEach-Object {
+    [System.Management.Automation.CompletionResult]::new(\$_, \$_, 'ParameterValue', \$_)
+  }
+}
+''';
+  }
+}
+
 Future<String> _uniqueFilename(Directory dir, String desired) async {
   final base = desired.replaceAll('.md', '');
   var name = desired;
   var i = 1;
-  while (await File('${dir.path}/$name').exists()) {
+  final sep = Platform.pathSeparator;
+  while (await File('${dir.path}$sep$name').exists()) {
     name = '$base-$i.md';
     i++;
   }
